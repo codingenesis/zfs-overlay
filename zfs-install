@@ -1,5 +1,5 @@
 # This guide has been update for LUKS+hardened, hardened and regular install using seperate /boot
-
+# It's highly recommended that you go through it once before executing stuff.
 #
 # Boot install CD (i.e. Gentoo 12.1 LiveDVD)
 #
@@ -9,6 +9,11 @@ mkfs.ext2 /dev/sda1
 
 #create another partition for zfs i.e. /dev/sda2 
 #if using single drive for installation than use all the available space keeping aside space for swap if needed
+
+#setup encrypted partition
+#aes-xts-plain64 was chosen due to speed, xts-essiv SHOULD be more secure but about half as slow, on aes-ni I was getting about 200MBps
+cryptsetup luksFormat -l 512 -c aes-xts-plain64 -h sha512 /dev/sda2
+cryptsetup luksOpen /dev/sda2 cryptroot
 
 
 # Using LUKS than create the required parition for zfs
