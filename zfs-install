@@ -11,7 +11,7 @@ mkfs.ext2 /dev/sda1
 #if using single drive for installation than use all the available space keeping aside space for swap if needed
 
 #setup encrypted partition
-#aes-xts-plain64 was chosen due to speed, xts-essiv SHOULD be more secure but about half as slow, on aes-ni I was getting about 200MBps
+#aes-xts-plain64 was chosen due to speed, xts-essiv SHOULD be more secure but about half as slow, on aes-ni I was getting about 450MBps
 cryptsetup luksFormat -l 512 -c aes-xts-plain64 -h sha512 /dev/sda2
 cryptsetup luksOpen /dev/sda2 cryptroot
 
@@ -33,6 +33,7 @@ zfs create -o mountpoint=/ rpool/ROOT/gentoo
 zfs create -o mountpoint=/home rpool/HOME
 zfs create -o mountpoint=/root rpool/HOME/root
 #replace USER with your username
+#chown will need to be done on user home dir
 zfs create -o mountpoint=/home/USER rpool/HOME/USER
 
 # Create portage directories
