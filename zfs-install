@@ -1,9 +1,24 @@
+# This guide has been update for LUKS+hardened, hardened and regular install using seperate /boot
+
 #
 # Boot install CD (i.e. Gentoo 12.1 LiveDVD)
 #
 
-# Create pool
-zpool create -f -o ashift=12 -o cachefile=/tmp/zpool.cache -O normalization=formD -m none -R /mnt/gentoo rpool /dev/sda
+#create /boot on /dev/sda1
+mkfs.ext2 /dev/sda1
+
+#create another partition for zfs i.e. /dev/sda2 
+#if using single drive for installation than use all the available space keeping aside space for swap if needed
+
+
+# Using LUKS than create the required parition for zfs
+
+zpool create -f -o ashift=12 -o cachefile=/tmp/zpool.cache -O normalization=formD -m none -R /mnt/gentoo rpool /dev/mapper/cryptroot
+
+
+# Not using LUKS than create the required partition for zfs
+
+zpool create -f -o ashift=12 -o cachefile=/tmp/zpool.cache -O normalization=formD -m none -R /mnt/gentoo rpool /dev/sda2
 
 # Create rootfs
 zfs create -o mountpoint=none rpool/ROOT
@@ -12,6 +27,8 @@ zfs create -o mountpoint=/ rpool/ROOT/gentoo
 # Create home directories
 zfs create -o mountpoint=/home rpool/HOME
 zfs create -o mountpoint=/root rpool/HOME/root
+#replace USER with your username
+zfs create -o mountpoint=/home/USER rpool/HOME/USER
 
 # Create portage directories
 zfs create -o mountpoint=none rpool/GENTOO
@@ -19,19 +36,21 @@ zfs create -o mountpoint=/usr/portage rpool/GENTOO/portage
 zfs create -o mountpoint=/usr/portage/distfiles rpool/GENTOO/distfiles
 
 # Create portage build directory
+# If compression=lz4 fails then use compression=on
 zfs create -o mountpoint=/var/tmp/portage -o compression=lz4 -o sync=disabled rpool/GENTOO/build-dir
 
 # Create optional packages directory
 zfs create -o mountpoint=/usr/portage/packages rpool/GENTOO/packages
 
 # Create optional ccache directory
+# If compression=lz4 fails then use compression=on
 zfs create -o mountpoint=/var/tmp/ccache -o compression=lz4 rpool/GENTOO/ccache
 
-# Set bootfs
-zpool set bootfs=rpool/ROOT/gentoo rpool
-
+# select any one of the following stage3 tar's
 # Download stage3
 wget ftp://gentoo.osuosl.org/pub/gentoo/releases/amd64/current-stage3/stage3-amd64-*.tar.bz2
+# Download stage3 for hardened
+wget ftp://gentoo.osuosl.org/pub/gentoo/releases/amd64/current-stage3/hardened/stage3-amd64-hardened-*.tar.bz2
 
 # Extract stage3
 tar -xf stage3-amd64-*.tar.bz2 -C /mnt/gentoo
@@ -58,8 +77,10 @@ emerge --sync
 # Install genkernel
 emerge sys-kernel/genkernel
 
-# Install sources
+# Install sources any one of them
 emerge sys-kernel/gentoo-sources
+#             or
+emerge sys-kernel/hardened-sources
 
 # Build initial kernel (required for checks in sys-kernel/spl and sys-fs/zfs)
 # FIXME: Make genkernel support modules_prepare
@@ -97,15 +118,28 @@ echo "sys-boot/grub:2 libzfs" >> /etc/portage/package.use
 echo "sys-boot/grub:2 ~amd64" >> /etc/portage/package.accept_keywords
 emerge sys-boot/grub:2
 touch /etc/mtab
-grub2-mkconfig -o /boot/grub2/grub.cfg
 grub2-install /dev/sda
 
 # Build kernel and initramfs
 genkernel all --no-clean --no-mountboot --zfs --bootloader=grub2 --callback="emerge @module-rebuild"
+grub2-mkconfig -o /boot/grub/grub.cfg   # gentoo now uses /boot/grub/ instead of /boot/grub2/
+
+# /boot entry in /etc/fstab
+/dev/sda1 /boot ext2 defaults,noatime 0 2
 
 #
-# Comment the BOOT, ROOT and SWAP lines in /etc/fstab
+# Comment the ROOT and SWAP lines in /etc/fstab
 #
+
+#kernel line for grub2, libzfs support is not needed in grub2 because you are not mounting the filesystem directly.
+
+linux  /kernel-3.11.7-gentoo root=ZFS=rpool/ROOT/gentoo crypt_root=/dev/sda2 dozfs=force ro
+initrd /initramfs-genkernel-x86_64-3.11.7
+
+#kernel line if not using LUKS
+
+linux  /kernel-3.5.0-gentoo root=ZFS=rpool/ROOT/gentoo ro 
+initrd /initramfs-genkernel-x86_64-3.11.7
 
 #
 # Follow chapters 8 through 12 of Gentoo Handboook: http://www.gentoo.org/doc/en/handbook/
@@ -144,3 +178,4 @@ zfs snapshot rpool/swap@install
 #
 # Note: Integrate `zfs create -o mountpoint=/home/user rpool/HOME/user` into procedure
 #
+
